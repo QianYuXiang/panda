@@ -1,5 +1,6 @@
 package com.pillow.panda;
 
+import com.googlecode.jsonrpc4j.HttpException;
 import com.googlecode.jsonrpc4j.JsonRpcHttpClient;
 import com.googlecode.jsonrpc4j.ProxyUtil;
 import com.pillow.panda.RpcUtils.AutomatorService;
@@ -20,9 +21,9 @@ public class RpcServerHelper {
     private boolean isInit = false;
 
     private String url = null;
-    private int port = 0;
+    private Integer port = 0;
 
-    public boolean init(String url, int port) {
+    public boolean init(String url, Integer port) {
         if(!isInit){
             this.url = url;
             this.port = port;
@@ -41,7 +42,27 @@ public class RpcServerHelper {
         return this.isInit;
     }
 
-    public boolean click(Selector s) throws UninitException, UiObjectNotFoundException, MultiSelectedException {
+    public String ping() throws HttpException {
+        return this.service.ping();
+    }
+
+    public boolean isAlive() throws HttpException {
+        return "pong".equals(this.ping());
+    }
+
+    public boolean exists(Selector s) throws UiObjectNotFoundException, MultiSelectedException, UninitException, HttpException {
+        assertInit();
+
+        return this.service.exist(s);
+    }
+
+    public int count(Selector s) throws UiObjectNotFoundException, MultiSelectedException, UninitException, HttpException {
+        assertInit();
+
+        return this.service.count(s);
+    }
+
+    public boolean click(Selector s) throws UninitException, UiObjectNotFoundException, MultiSelectedException, HttpException {
         assertInit();
         assertSelector(s);
 
@@ -55,7 +76,7 @@ public class RpcServerHelper {
         }
     }
 
-    public boolean setText(Selector s, String text) throws UninitException, MultiSelectedException, UiObjectNotFoundException {
+    public boolean setText(Selector s, String text) throws UninitException, MultiSelectedException, UiObjectNotFoundException, HttpException {
         assertInit();
         assertSelector(s);
 
@@ -80,18 +101,45 @@ public class RpcServerHelper {
 
     public void assertInit() throws UninitException {
         if(!this.isInit)
-            throw new UninitException("RpcServerHelper error : not");
+            throw new UninitException("RpcServerHelper error : RpcServer not init yet");
     }
 
-    public void assertSelector(Selector s) throws UiObjectNotFoundException, MultiSelectedException, UninitException {
+    public void assertSelector(Selector s, boolean bRetry) throws UiObjectNotFoundException, MultiSelectedException, UninitException, HttpException {
         if(!this.isInit)
             throw new UninitException("RpcServerHelper error : not init RpcServerHelper");
 
         int c = this.service.count(s);
         if(c == 0)
-            throw new UiObjectNotFoundException("RpcServerHelper error : none can be clicked");
+        {
+            if(bRetry){
+                boolean isOk = this.service.waitForExists(s, 10000);
+                if(isOk)return;
+                assertSelector(s, false);
+            }
+            else {
+                throw new UiObjectNotFoundException("RpcServerHelper error : none can be clicked");
+            }
+        }
+
         if(c > 1)
             throw new MultiSelectedException("RpcServerHelper error : multi is selected");
     }
 
+    public void assertSelector(Selector s) throws UiObjectNotFoundException, MultiSelectedException, UninitException {
+        this.assertSelector(s, true);
+    }
+
+    public String getUrl() {
+        return this.url;
+    }
+
+    public Integer getPort() {
+        return this.port;
+    }
+
+    public AutomatorService getService() throws UninitException {
+        assertInit();
+
+        return this.service;
+    }
 }

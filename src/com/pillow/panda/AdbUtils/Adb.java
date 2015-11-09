@@ -10,10 +10,10 @@ import java.util.regex.Pattern;
  */
 public class Adb {
 
-    private String __adb_cmd = null;
+    private static String __adb_cmd = null;
     private String default_serial = null;
     private String adb_server_host = null;
-    private String adb_server_port = null;
+    private Integer adb_server_port = null;
     private List<String> adb_host_port_options = null;
 
     private Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)");
@@ -22,7 +22,7 @@ public class Adb {
         this(null, null, null);
     }
 
-    public Adb(String _serial, String _adb_server_host, String _adb_server_port) {
+    public Adb(String _serial, String _adb_server_host, Integer _adb_server_port) {
         if( _serial == null )
             this.default_serial = System.getProperty("ANDROID_SERIAL", null);
         else
@@ -34,7 +34,7 @@ public class Adb {
             this.adb_server_host = _adb_server_host;
 
         if(_adb_server_port == null)
-            this.adb_server_port = "5037";
+            this.adb_server_port = 5037;
         else
             this.adb_server_port = _adb_server_port;
 
@@ -45,12 +45,11 @@ public class Adb {
 
         if( !"5037".equals(adb_server_port) ){
             adb_host_port_options.add("-P");
-            adb_host_port_options.add(adb_server_port);
+            adb_host_port_options.add(adb_server_port.toString());
         }
-
     }
 
-    public String adb() throws EnvironmentError {
+    static public String adb() throws EnvironmentError {
         String filename;
         String osName = System.getProperty("os.name");
         if( "nt".equals(osName) )
@@ -68,15 +67,30 @@ public class Adb {
             }
             else
             {
-                fAdbCmd = new File(new File(".", "bin"), filename);
+                fAdbCmd = new File("bin", filename);
                 if( !fAdbCmd.exists() )
                     throw new EnvironmentError(String.format("$ANDROID_HOME environment not set and not find in bin directory"));
             }
 
-            this.__adb_cmd = fAdbCmd.getAbsolutePath();
+            Adb.__adb_cmd = fAdbCmd.getAbsolutePath();
         }
 
-        return __adb_cmd;
+        return Adb.__adb_cmd;
+    }
+
+    static public Process raw_cmd2(List<String> args) throws EnvironmentError, IOException {
+        List<String> retCmd = new ArrayList<String>();
+        retCmd.add(Adb.adb());
+        if(args != null && args.size() != 0)
+            retCmd.addAll(args);
+
+        String[] _ = new String[retCmd.size()];
+        int index = 0;
+        for(String __ : retCmd){
+            _[index++] = __;
+        }
+
+        return Runtime.getRuntime().exec(_);
     }
 
     public Process raw_cmd(List<String> args) throws EnvironmentError, IOException {
@@ -96,10 +110,10 @@ public class Adb {
         return Runtime.getRuntime().exec(_);
     }
 
-    public Map<String, String> devices() throws IOException, EnvironmentError {
+    static public Map<String, String> devices() throws IOException, EnvironmentError {
         Map<String, String> ret = new HashMap<String, String>();
 
-        Process p = this.raw_cmd(Collections.singletonList("devices"));
+        Process p = Adb.raw_cmd2(Collections.singletonList("devices"));
         BufferedReader input = new BufferedReader( new InputStreamReader(p.getInputStream()) );
 
         int flag = 0;
@@ -126,7 +140,7 @@ public class Adb {
 
     public String device_serial() throws IOException, EnvironmentError {
         if(default_serial == null) {
-            Map<String, String> devices = this.devices();
+            Map<String, String> devices = Adb.devices();
             Set<String> keys = devices.keySet();
             if(keys.size() == 1){
                 for(String k : keys) {
@@ -286,5 +300,42 @@ public class Adb {
         }
 
         return ret;
+    }
+
+    public String getAdbServerHost() {
+        return this.adb_server_host;
+    }
+
+    public Integer getAdbServerPort() {
+        return this.adb_server_port;
+    }
+
+    static public boolean connectHaimawanOnMacOs() {
+        List<String> params = new ArrayList<String>();
+        try {
+            params.add(Adb.adb());
+        } catch (EnvironmentError environmentError) {
+            environmentError.printStackTrace();
+            return false;
+        }
+
+        params.add("connect");
+        params.add("192.168.56.101");
+
+        String[] _ = new String[params.size()];
+        int index = 0;
+        for(String __ : params){
+            _[index++] = __;
+        }
+
+        try {
+            return Runtime.getRuntime().exec(_).waitFor() == 0;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return false;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 }
